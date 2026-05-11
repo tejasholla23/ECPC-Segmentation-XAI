@@ -363,6 +363,115 @@ def overlay_heatmap(
     return np.clip(blended, 0, 255).astype(np.uint8)
 
 
+def interpret_dice_score(dice: float) -> Tuple[str, str]:
+    """Interpret Dice score and return assessment + color code."""
+    if dice >= 0.85: return "Excellent Agreement", "#10b981"
+    if dice >= 0.70: return "Clinically Acceptable", "#3b82f6"
+    if dice >= 0.50: return "Fair / Requires Review", "#f59e0b"
+    return "Low Reliability", "#ef4444"
+
+def interpret_confidence(conf: float) -> Tuple[str, str]:
+    """Interpret model confidence."""
+    if conf >= 0.90: return "High Confidence", "#10b981"
+    if conf >= 0.75: return "Stable Prediction", "#3b82f6"
+    if conf >= 0.50: return "Moderate Uncertainty", "#f59e0b"
+    return "Low Confidence / Manual Audit Required", "#ef4444"
+
+def interpret_lesion_volume(volume: float) -> str:
+    """Interpret lesion volume burden."""
+    if volume > 5000: return "Significant lesion burden detected (>5000 mm³)."
+    if volume > 1000: return "Moderate lesion burden detected."
+    if volume > 0: return "Localized lesion burden."
+    return "No significant lesion volume detected."
+
+def generate_clinical_report_html(patient_data: dict) -> str:
+    """Generate a structured, styled clinical report in HTML format."""
+    if not patient_data or not patient_data.get("patient_id"):
+        return """
+        <div style="padding: 40px; text-align: center; color: #64748b;">
+            <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
+            <div style="font-size: 1.2em;">Waiting for patient analysis...</div>
+            <div style="font-size: 0.9em; margin-top: 10px;">Select a patient to generate AI diagnostic report.</div>
+        </div>
+        """
+    
+    patient_id = patient_data.get("patient_id", "UNKNOWN")
+    metrics = patient_data.get("metrics", {})
+    dice = float(metrics.get("dice_score", 0.0))
+    conf = float(metrics.get("confidence", 0.0))
+    volume = float(metrics.get("lesion_volume", 0.0))
+    density = float(metrics.get("mean_density", 0.0))
+    
+    dice_label, dice_color = interpret_dice_score(dice)
+    conf_label, conf_color = interpret_confidence(conf)
+    volume_desc = interpret_lesion_volume(volume)
+    
+    # Radiomics observation
+    density_obs = "Tissue density within expected range."
+    if density > 250: density_obs = "Hyperdense region observed; may indicate focal irregularity."
+    elif density < -50: density_obs = "Hypodense region observed; check for cystic components."
+    
+    # Recommendation logic
+    recommendation = "Proceed with standard clinical workflow."
+    if dice < 0.60 or conf < 0.60:
+        recommendation = "<strong>Action Required:</strong> Discrepancy or low confidence detected. Immediate radiologist audit recommended."
+    elif volume > 5000:
+        recommendation = "<strong>Recommendation:</strong> Consider multi-slice volumetric review for surgical planning."
+
+    xai_status = "Available & Integrated" if patient_data.get("heatmap") is not None else "Not Available"
+    xai_color = "#10b981" if xai_status == "Available & Integrated" else "#94a3b8"
+
+    html = f"""
+    <div class="clinical-report-container">
+        <div class="report-header">
+            <span class="patient-badge">PATIENT ID: {patient_id}</span>
+            <span class="status-badge" style="background-color: {dice_color}22; color: {dice_color}; border: 1px solid {dice_color}44;">
+                {dice_label}
+            </span>
+        </div>
+        
+        <div class="report-section">
+            <h4><span class="icon">🎯</span> AI Segmentation Assessment</h4>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="label">Dice Score</div>
+                    <div class="value" style="color: {dice_color}">{dice:.3f}</div>
+                </div>
+                <div class="metric-item">
+                    <div class="label">Confidence</div>
+                    <div class="value" style="color: {conf_color}">{conf:.1%}</div>
+                </div>
+            </div>
+            <p class="summary-text">AI analysis suggests a <strong>{dice_label.lower()}</strong> based on spatial overlap metrics. Model prediction is categorized as <strong>{conf_label.lower()}</strong>.</p>
+        </div>
+        
+        <div class="report-section">
+            <h4><span class="icon">📐</span> Lesion Characteristics</h4>
+            <ul class="report-list">
+                <li><strong>Estimated Volume:</strong> {volume:.1f} mm³</li>
+                <li><strong>Observation:</strong> {volume_desc}</li>
+            </ul>
+        </div>
+        
+        <div class="report-section">
+            <h4><span class="icon">📊</span> Radiomics & XAI Overview</h4>
+            <ul class="report-list">
+                <li><strong>Mean Density:</strong> {density:.1f} HU ({density_obs})</li>
+                <li><strong>XAI Attribution:</strong> <span style="color: {xai_color}">{xai_status}</span></li>
+            </ul>
+        </div>
+        
+        <div class="report-footer">
+            <div class="recommendation-box">
+                <span class="rec-title">💡 Clinical Recommendation</span>
+                <p>{recommendation}</p>
+            </div>
+            <div class="report-timestamp">Report generated by ECPC-AI Pipeline v1.0</div>
+        </div>
+    </div>
+    """
+    return html
+
 def resize_image(
     image: np.ndarray,
     target_size: Tuple[int, int] = (400, 400),

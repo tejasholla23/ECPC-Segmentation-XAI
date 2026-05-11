@@ -17,7 +17,8 @@ from utils.helpers import (
     load_mask_safe,
     overlay_mask,
     overlay_heatmap,
-    create_mask_visual
+    create_mask_visual,
+    generate_clinical_report_html
 )
 from components.ui_components import (
     create_patient_selector_section,
@@ -137,32 +138,30 @@ def handle_load_patient(patient_id: str, show_overlay: bool = False) -> Tuple:
     max_diameter = float(safe_get_nested_value(metrics, ["max_diameter"], 0.0))
     mean_density = float(safe_get_nested_value(metrics, ["mean_density"], 0.0))
     
-    summary = f"""
-    **Patient ID:** {patient_data.get('patient_id', 'UNKNOWN')}
-    **Status:** {patient_data.get('status', 'completed')}
-    **Message:** {patient_data.get('message', 'Analysis completed')}
-    
-    **Model Performance:**
-    - Dice Score: {format_metric_value(dice)}
-    - IoU (Jaccard): {format_metric_value(iou)}
-    - Hausdorff Distance: {format_metric_value(hausdorff)}
-    - Sensitivity: {format_metric_value(sensitivity)}
-    - Specificity: {format_metric_value(specificity)}
-    - Confidence: {format_metric_value(confidence)}
-    
-    **Lesion Characteristics:**
-    - Lesion Volume: {format_metric_value(lesion_volume)}
-    - Sphericity: {format_metric_value(sphericity)}
-    - Max Diameter: {format_metric_value(max_diameter)}
-    - Mean Density: {format_metric_value(mean_density)}
-    """
+    summary_html = generate_clinical_report_html(patient_data)
     
     return (
         ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img,
         dice, iou, hausdorff, sensitivity, specificity,
         confidence, lesion_volume, sphericity, max_diameter, mean_density,
-        status_msg, summary.strip()
+        status_msg, summary_html, patient_data
     )
+
+
+def handle_overlay_toggle(patient_data: dict, show_overlay: bool) -> Tuple:
+    """
+    Handle toggling the overlay visualization without re-fetching data.
+    Uses the stored patient data state.
+    """
+    if not patient_data:
+        return (None,) * 6  # Return empty images if no data
+        
+    ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
+        patient_data,
+        show_overlay=show_overlay
+    )
+    
+    return ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img
 
 
 def handle_clear_data() -> Tuple:
@@ -208,31 +207,13 @@ def handle_load_random_patient(show_overlay: bool = False) -> Tuple:
     max_diameter = float(safe_get_nested_value(metrics, ["max_diameter"], 0.0))
     mean_density = float(safe_get_nested_value(metrics, ["mean_density"], 0.0))
     
-    summary = f"""
-    **Patient ID:** {patient_data.get('patient_id', 'UNKNOWN')}
-    **Status:** {patient_data.get('status', 'random demo')}
-    **Message:** {patient_data.get('message', 'Random patient data loaded')}
-    
-    **Model Performance:**
-    - Dice Score: {format_metric_value(dice)}
-    - IoU (Jaccard): {format_metric_value(iou)}
-    - Hausdorff Distance: {format_metric_value(hausdorff)}
-    - Sensitivity: {format_metric_value(sensitivity)}
-    - Specificity: {format_metric_value(specificity)}
-    - Confidence: {format_metric_value(confidence)}
-    
-    **Lesion Characteristics:**
-    - Lesion Volume: {format_metric_value(lesion_volume)}
-    - Sphericity: {format_metric_value(sphericity)}
-    - Max Diameter: {format_metric_value(max_diameter)}
-    - Mean Density: {format_metric_value(mean_density)}
-    """
+    summary_html = generate_clinical_report_html(patient_data)
     
     return (
         ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img,
         dice, iou, hausdorff, sensitivity, specificity,
         confidence, lesion_volume, sphericity, max_diameter, mean_density,
-        status_msg, summary.strip()
+        status_msg, summary_html, patient_data
     )
 
 
@@ -255,7 +236,8 @@ def generate_empty_outputs(status_message: str) -> Tuple:
         0.0, 0.0, 0.0, 0.0, 0.0,
         0.0, 0.0, 0.0, 0.0, 0.0,
         status_message,
-        "No patient data loaded. Use the Patient Selection panel to load a patient."
+        generate_clinical_report_html({}),
+        {}
     )
 
 
@@ -275,32 +257,212 @@ def create_app() -> gr.Blocks:
             secondary_hue="slate"
         ),
         css="""
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        :root {
+            --medical-blue: #0066CC;
+            --medical-slate: #64748b;
+            --medical-emerald: #10b981;
+        }
+        
+        .gradio-container {
+            font-family: 'Inter', -apple-system, sans-serif !important;
+            background-color: #f8fafc !important;
+        }
+        
         .header-title {
             text-align: center;
-            font-size: 2.5em;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #0066CC;
+            font-size: 2.8em !important;
+            font-weight: 700 !important;
+            margin-bottom: 5px !important;
+            background: linear-gradient(135deg, #0066CC 0%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
         }
+        
         .header-subtitle {
             text-align: center;
-            font-size: 1.1em;
-            color: #666;
-            margin-bottom: 30px;
+            font-size: 1.2em !important;
+            color: #64748b !important;
+            margin-bottom: 40px !important;
+            font-weight: 400;
         }
-        .medical-card {
-            border-radius: 12px;
-            padding: 20px;
-            background-color: #f8f9fa;
+        
+        #metrics-container, #image-display-container {
+            border: 1px solid rgba(226, 232, 240, 0.8) !important;
+            border-radius: 16px !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+            background-color: white !important;
+            padding: 24px !important;
+            transition: transform 0.2s ease-in-out;
         }
+        
+        #metrics-container:hover {
+            transform: translateY(-2px);
+        }
+        
         .metric-card {
+            border: none !important;
+            background-color: #f1f5f9 !important;
+            border-radius: 10px !important;
+            padding: 10px !important;
+            transition: all 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            background-color: #e2e8f0 !important;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05) !important;
+        }
+        
+        .metric-card label {
+            font-size: 0.85em !important;
+            color: #475569 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600 !important;
+        }
+        
+        .metric-card input {
+            font-size: 1.4em !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+        }
+        
+        button.primary {
+            background: linear-gradient(135deg, #0066CC 0%, #2563eb 100%) !important;
+            border: none !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 102, 204, 0.3) !important;
+        }
+        
+        button.primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 25px -5px rgba(0, 102, 204, 0.4) !important;
+        }
+        
+        .gr-check-radio {
+            accent-color: #0066CC !important;
+        }
+        
+        /* Loading animation */
+        .loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        /* Clinical Report Styles */
+        .clinical-report-container {
+            padding: 5px;
+            color: #1e293b;
+        }
+        
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .patient-badge {
+            font-weight: 700;
+            color: #64748b;
+            font-size: 0.9em;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+        
+        .report-section {
+            margin-bottom: 25px;
+        }
+        
+        .report-section h4 {
+            margin: 0 0 10px 0;
+            color: #0f172a;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+        
+        .metric-item {
+            background: #f8fafc;
+            padding: 10px;
             border-radius: 8px;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .metric-item .label {
+            font-size: 0.75em;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .metric-item .value {
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+        
+        .summary-text {
+            font-size: 0.95em;
+            line-height: 1.5;
+            color: #475569;
+        }
+        
+        .report-list {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 0.95em;
+            color: #475569;
+        }
+        
+        .report-list li {
+            margin-bottom: 5px;
+        }
+        
+        .recommendation-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
             padding: 15px;
-            background-color: #ffffff;
-            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .rec-title {
+            display: block;
+            font-weight: 700;
+            color: #0369a1;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        
+        .report-timestamp {
+            margin-top: 15px;
+            font-size: 0.75em;
+            color: #94a3b8;
+            text-align: right;
         }
         """
     ) as app:
+        
+        # Patient data state to store loaded data
+        patient_data_state = gr.State({})
         
         # ====================================================================
         # Header Section
@@ -395,7 +557,7 @@ def create_app() -> gr.Blocks:
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
                 confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
-                status_output, summary_output
+                status_output, summary_output, patient_data_state
             ],
             queue=False
         )
@@ -408,7 +570,7 @@ def create_app() -> gr.Blocks:
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
                 confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
-                status_output, summary_output
+                status_output, summary_output, patient_data_state
             ],
             queue=False
         )
@@ -421,20 +583,17 @@ def create_app() -> gr.Blocks:
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
                 confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
-                status_output, summary_output
+                status_output, summary_output, patient_data_state
             ],
             queue=False
         )
         
         # Update overlay visibility when the toggle changes
         show_overlay.change(
-            fn=handle_load_patient,
-            inputs=[patient_id_input, show_overlay],
+            fn=handle_overlay_toggle,
+            inputs=[patient_data_state, show_overlay],
             outputs=[
-                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
-                dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
-                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
-                status_output, summary_output
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image
             ],
             queue=False
         )
@@ -447,7 +606,7 @@ def create_app() -> gr.Blocks:
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
                 confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
-                status_output, summary_output
+                status_output, summary_output, patient_data_state
             ]
         )
     

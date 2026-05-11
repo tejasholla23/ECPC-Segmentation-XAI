@@ -14,8 +14,20 @@ RANDOM_PATIENT_ENDPOINT = "/patient/random"
 # Default Application Settings
 DEFAULT_PATIENT_ID = "PATIENT_001"
 MAX_PATIENT_ID_LENGTH = 50
-RETRY_ATTEMPTS = 2
-RETRY_DELAY = 1  # seconds
+RETRY_ATTEMPTS = 3
+RETRY_DELAY = 2  # seconds
+
+# Clinical Metric Constants
+METRIC_DICE = "dice_score"
+METRIC_IOU = "iou_score"
+METRIC_HAUSDORFF = "hausdorff_distance"
+METRIC_SENSITIVITY = "sensitivity"
+METRIC_SPECIFICITY = "specificity"
+METRIC_CONFIDENCE = "confidence"
+METRIC_LESION_VOLUME = "lesion_volume"
+METRIC_SPHERICITY = "sphericity"
+METRIC_MAX_DIAMETER = "max_diameter"
+METRIC_MEAN_DENSITY = "mean_density"
 
 # Placeholder Text Values
 TITLE = "ECPC-IDS Endometriosis Segmentation XAI Dashboard"
@@ -39,11 +51,14 @@ OUTPUT_FOLDER_PREDICTIONS = "./outputs/predictions"
 OUTPUT_FOLDER_HEATMAPS = "./outputs/heatmaps"
 OUTPUT_FOLDER_REPORTS = "./outputs/reports"
 
-# UI Theme Configuration
+# UI Theme Configuration (Premium Medical Palette)
 THEME_PRIMARY_COLOR = "#0066CC"
-THEME_SUCCESS_COLOR = "#28A745"
-THEME_ERROR_COLOR = "#DC3545"
-THEME_WARNING_COLOR = "#FFC107"
+THEME_SECONDARY_COLOR = "#64748b"  # Slate
+THEME_BACKGROUND_DARK = "#0f172a"  # Very dark slate
+THEME_ACCENT_COLOR = "#38bdf8"     # Light blue
+THEME_SUCCESS_COLOR = "#10b981"    # Emerald
+THEME_ERROR_COLOR = "#ef4444"      # Red
+THEME_WARNING_COLOR = "#f59e0b"    # Amber
 
 # Image Modal Options
 MODALITIES = ["CT", "PET", "Ground Truth", "Prediction", "Heatmap"]

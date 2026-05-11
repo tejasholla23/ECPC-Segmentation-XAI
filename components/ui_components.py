@@ -60,8 +60,8 @@ def create_image_display_section() -> Tuple[gr.Image, gr.Image, gr.Image, gr.Ima
     Returns:
         Tuple containing image components for medical imaging display
     """
-    with gr.Group(label="🖼️ Medical Imaging", scale=2):
-        gr.Markdown("#### CT/PET and Analysis Visualizations")
+    with gr.Group(elem_id="image-display-container", scale=2):
+        gr.Markdown("#### 🧬 Imaging Modalities & Analysis")
         
         with gr.Row():
             with gr.Column(scale=1):
@@ -133,76 +133,40 @@ def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.
     Returns:
         Tuple containing metric output components
     """
-    with gr.Group(label="📊 Performance Metrics", scale=1):
-        gr.Markdown("#### Segmentation Quality Metrics")
+    with gr.Group(elem_id="metrics-container", scale=1):
+        gr.Markdown("#### 🩺 Clinical Analysis Metrics")
         
         with gr.Row():
-            dice_score = gr.Number(
-                label="Dice Score",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            iou_score = gr.Number(
-                label="IoU (Jaccard)",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            hausdorff = gr.Number(
-                label="Hausdorff Distance",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
+            with gr.Column(scale=1):
+                gr.Markdown("**Model Performance**")
+                with gr.Row():
+                    dice_score = gr.Number(label="Dice Score", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                    iou_score = gr.Number(label="IoU", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                with gr.Row():
+                    hausdorff = gr.Number(label="Hausdorff", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                    confidence_score = gr.Number(label="Confidence", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+            
+            with gr.Column(scale=1):
+                gr.Markdown("**Statistical Reliability**")
+                with gr.Row():
+                    sensitivity = gr.Number(label="Sensitivity", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                    specificity = gr.Number(label="Specificity", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+        
+        gr.Markdown("---")
         
         with gr.Row():
-            sensitivity = gr.Number(
-                label="Sensitivity (Recall)",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            specificity = gr.Number(
-                label="Specificity",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            confidence_score = gr.Number(
-                label="Confidence",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-        
-        with gr.Row():
-            lesion_volume = gr.Number(
-                label="Lesion Volume",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            sphericity = gr.Number(
-                label="Sphericity",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-            max_diameter = gr.Number(
-                label="Max Diameter",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
-        
-        with gr.Row():
-            mean_density = gr.Number(
-                label="Mean Density",
-                value=0.0,
-                interactive=False,
-                precision=3
-            )
+            with gr.Column(scale=1):
+                gr.Markdown("**Lesion Geometry**")
+                with gr.Row():
+                    lesion_volume = gr.Number(label="Volume (mm³)", value=0.0, interactive=False, precision=1, elem_classes="metric-card")
+                    sphericity = gr.Number(label="Sphericity", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                with gr.Row():
+                    max_diameter = gr.Number(label="Max Diameter (mm)", value=0.0, interactive=False, precision=2, elem_classes="metric-card")
+            
+            with gr.Column(scale=1):
+                gr.Markdown("**Radiomics Features**")
+                with gr.Row():
+                    mean_density = gr.Number(label="Mean Density (HU)", value=0.0, interactive=False, precision=1, elem_classes="metric-card")
     
     return (
         dice_score,
@@ -218,20 +182,24 @@ def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.
     )
 
 
-def create_summary_section() -> gr.Textbox:
+def create_summary_section() -> gr.HTML:
     """
-    Create the summary information section.
+    Create the clinical report section using HTML for rich formatting.
     
     Returns:
-        gr.Textbox: detailed summary output component
+        gr.HTML: detailed summary output component
     """
-    with gr.Group(label="📋 Clinical Summary", scale=2):
-        gr.Markdown("#### Clinical Summary")
-        summary_output = gr.Textbox(
-            label="Summary / Clinical Report",
-            value="Load a patient to see analysis results.",
-            interactive=False,
-            lines=8
+    with gr.Group(elem_id="report-container", scale=2):
+        gr.Markdown("#### 📋 AI Clinical Report")
+        summary_output = gr.HTML(
+            value="""
+            <div style="padding: 40px; text-align: center; color: #64748b;">
+                <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
+                <div style="font-size: 1.2em;">Waiting for patient analysis...</div>
+                <div style="font-size: 0.9em; margin-top: 10px;">Select a patient to generate AI diagnostic report.</div>
+            </div>
+            """,
+            elem_id="clinical-report-output"
         )
     
     return summary_output
