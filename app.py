@@ -18,7 +18,8 @@ from utils.helpers import (
     overlay_mask,
     overlay_heatmap,
     create_mask_visual,
-    generate_clinical_report_html
+    generate_clinical_report_html,
+    export_report_to_file
 )
 from components.ui_components import (
     create_patient_selector_section,
@@ -34,7 +35,7 @@ from services.api_client import load_patient_data, load_random_patient_data
 # Event Handlers
 # ============================================================================
 
-def _prepare_patient_images(patient_data: dict, show_overlay: bool = False) -> tuple:
+def _prepare_patient_images(patient_data: dict, show_overlay: bool = False, overlay_alpha: float = 0.35) -> tuple:
     """
     Prepare all image outputs from backend data with safe conversion.
     """
@@ -83,7 +84,7 @@ def _prepare_patient_images(patient_data: dict, show_overlay: bool = False) -> t
             ct_img_rgb,
             pred_mask if pred_mask is not None else gt_mask,
             color=(255, 170, 35),
-            alpha=0.35
+            alpha=overlay_alpha
         )
     else:
         overlay_img = create_placeholder_image(
@@ -93,24 +94,19 @@ def _prepare_patient_images(patient_data: dict, show_overlay: bool = False) -> t
 
     return ct_img, pet_img, gt_img, pred_img, heatmap_overlay, overlay_img
 
-def handle_load_patient(patient_id: str, show_overlay: bool = False) -> Tuple:
+def handle_load_patient(patient_id: str, show_overlay: bool = False, overlay_opacity: float = 0.35, progress=gr.Progress()) -> Tuple:
     """
     Handle loading a patient's data and populating all visualizations.
     Calls the backend API and handles errors gracefully.
-    
-    Args:
-        patient_id (str): The patient ID to load
-        show_overlay (bool): Whether to render the overlay visualization
-        
-    Returns:
-        Tuple: All outputs for the dashboard components
     """
+    progress(0.1, desc="Validating patient ID...")
     # Validate patient ID
     is_valid, error_msg = validate_patient_id(patient_id)
     if not is_valid:
         status = format_status_message(error_msg, "error")
         return generate_empty_outputs(status)
     
+    progress(0.3, desc="Fetching imaging data from backend...")
     # Load patient data from backend API (with fallback support)
     success, patient_data, status_msg = load_patient_data(
         patient_id,
@@ -120,10 +116,14 @@ def handle_load_patient(patient_id: str, show_overlay: bool = False) -> Tuple:
     if not success:
         return generate_empty_outputs(status_msg)
     
+    progress(0.6, desc="Rendering multimodal visualizations...")
     ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
         patient_data,
-        show_overlay=show_overlay
+        show_overlay=show_overlay,
+        overlay_alpha=overlay_opacity
     )
+
+    progress(0.8, desc="Generating AI clinical report...")
 
     # Extract metrics from response
     metrics = patient_data.get("metrics", {})
@@ -148,7 +148,7 @@ def handle_load_patient(patient_id: str, show_overlay: bool = False) -> Tuple:
     )
 
 
-def handle_overlay_toggle(patient_data: dict, show_overlay: bool) -> Tuple:
+def handle_overlay_toggle(patient_data: dict, show_overlay: bool, overlay_opacity: float = 0.35) -> Tuple:
     """
     Handle toggling the overlay visualization without re-fetching data.
     Uses the stored patient data state.
@@ -158,10 +158,21 @@ def handle_overlay_toggle(patient_data: dict, show_overlay: bool) -> Tuple:
         
     ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
         patient_data,
-        show_overlay=show_overlay
+        show_overlay=show_overlay,
+        overlay_alpha=overlay_opacity
     )
     
     return ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img
+
+
+def handle_export_report(patient_data: dict) -> str:
+    """
+    Handle exporting the current clinical report.
+    """
+    if not patient_data or not patient_data.get("patient_id"):
+        return None
+        
+    return export_report_to_file(patient_data, file_format="markdown")
 
 
 def handle_clear_data() -> Tuple:
@@ -175,25 +186,24 @@ def handle_clear_data() -> Tuple:
     return generate_empty_outputs(status)
 
 
-def handle_load_random_patient(show_overlay: bool = False) -> Tuple:
+def handle_load_random_patient(show_overlay: bool = False, overlay_opacity: float = 0.35, progress=gr.Progress()) -> Tuple:
     """
     Handle loading a random patient using the backend API or demo fallback.
-    
-    Args:
-        show_overlay (bool): Whether to render the overlay visualization
-        
-    Returns:
-        Tuple: All outputs for the dashboard components
     """
+    progress(0.2, desc="Selecting random case...")
     success, patient_data, status_msg = load_random_patient_data(use_fallback=True)
     
     if not success:
         return generate_empty_outputs(status_msg)
     
+    progress(0.5, desc="Preparing multimodal views...")
     ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
         patient_data,
-        show_overlay=show_overlay
+        show_overlay=show_overlay,
+        overlay_alpha=overlay_opacity
     )
+    
+    progress(0.8, desc="Finalizing AI report...")
     
     metrics = patient_data.get("metrics", {})
     dice = float(safe_get_nested_value(metrics, ["dice_score"], 0.0))
@@ -458,6 +468,28 @@ def create_app() -> gr.Blocks:
             color: #94a3b8;
             text-align: right;
         }
+        
+        /* Export & File Styling */
+        #clinical-report-output {
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        
+        .gr-file {
+            border: 1px dashed #cbd5e1 !important;
+            background: #f8fafc !important;
+            border-radius: 8px !important;
+        }
+        
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            .header-title {
+                font-size: 2em !important;
+            }
+        }
         """
     ) as app:
         
@@ -484,7 +516,7 @@ def create_app() -> gr.Blocks:
                 gr.Markdown("### ⚙️ Controls")
                 
                 # Patient Selector
-                patient_id_input, load_button, random_button, clear_button = create_patient_selector_section()
+                patient_id_input, load_button, random_button, clear_button, export_button, report_file = create_patient_selector_section()
                 
                 gr.Markdown("---")
                 
@@ -511,6 +543,14 @@ def create_app() -> gr.Blocks:
                         minimum=0.0,
                         maximum=1.0,
                         value=0.5,
+                        step=0.05,
+                        interactive=True
+                    )
+                    overlay_opacity = gr.Slider(
+                        label="Overlay Opacity",
+                        minimum=0.0,
+                        maximum=1.0,
+                        value=0.35,
                         step=0.05,
                         interactive=True
                     )
@@ -552,7 +592,7 @@ def create_app() -> gr.Blocks:
         # Load patient button click handler
         load_button.click(
             fn=handle_load_patient,
-            inputs=[patient_id_input, show_overlay],
+            inputs=[patient_id_input, show_overlay, overlay_opacity],
             outputs=[
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
@@ -565,7 +605,7 @@ def create_app() -> gr.Blocks:
         # Random patient button click handler
         random_button.click(
             fn=handle_load_random_patient,
-            inputs=[show_overlay],
+            inputs=[show_overlay, overlay_opacity],
             outputs=[
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
@@ -591,17 +631,36 @@ def create_app() -> gr.Blocks:
         # Update overlay visibility when the toggle changes
         show_overlay.change(
             fn=handle_overlay_toggle,
-            inputs=[patient_data_state, show_overlay],
+            inputs=[patient_data_state, show_overlay, overlay_opacity],
             outputs=[
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image
             ],
             queue=False
         )
         
+        overlay_opacity.change(
+            fn=handle_overlay_toggle,
+            inputs=[patient_data_state, show_overlay, overlay_opacity],
+            outputs=[
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image
+            ],
+            queue=False
+        )
+        
+        export_button.click(
+            fn=handle_export_report,
+            inputs=[patient_data_state],
+            outputs=[report_file],
+            queue=False
+        ).then(
+            fn=lambda: gr.update(visible=True),
+            outputs=[report_file]
+        )
+        
         # Load default patient on app start
         app.load(
             fn=handle_load_patient,
-            inputs=[patient_id_input, show_overlay],
+            inputs=[patient_id_input, show_overlay, overlay_opacity],
             outputs=[
                 ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,

@@ -44,13 +44,23 @@ def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button,
                 variant="secondary",
                 scale=1
             )
+        
+        with gr.Row():
             clear_button = gr.Button(
                 "🗑️ Clear",
                 variant="secondary",
                 scale=1
             )
+            export_button = gr.Button(
+                "📥 Export Report",
+                variant="secondary",
+                scale=1
+            )
+            
+        # Hidden file component for download
+        report_file = gr.File(label="Download Clinical Report", visible=False)
     
-    return patient_id_input, load_button, random_button, clear_button
+    return patient_id_input, load_button, random_button, clear_button, export_button, report_file
 
 
 def create_image_display_section() -> Tuple[gr.Image, gr.Image, gr.Image, gr.Image, gr.Image, gr.Image]:
