@@ -7,15 +7,24 @@ import gradio as gr
 import numpy as np
 from typing import Tuple
 import config
-from utils.helpers import validate_patient_id, format_metric_value, format_status_message
+from utils.helpers import (
+    validate_patient_id,
+    format_metric_value,
+    format_status_message,
+    safe_get_nested_value,
+    create_placeholder_image,
+    load_image_safe,
+    load_mask_safe,
+    overlay_mask,
+    overlay_heatmap,
+    create_mask_visual
+)
 from components.ui_components import (
     create_patient_selector_section,
     create_image_display_section,
     create_metrics_cards_section,
     create_summary_section,
-    create_dummy_image,
-    create_dummy_segmentation_image,
-    create_dummy_heatmap
+    create_dummy_image
 )
 from services.api_client import load_patient_data, load_random_patient_data
 
@@ -24,41 +33,73 @@ from services.api_client import load_patient_data, load_random_patient_data
 # Event Handlers
 # ============================================================================
 
-def _get_image_or_placeholder(image_data: any, name: str) -> np.ndarray:
+def _prepare_patient_images(patient_data: dict, show_overlay: bool = False) -> tuple:
     """
-    Get an image from data or return a placeholder if missing/invalid.
-    
-    Args:
-        image_data: Image data (numpy array, file path, or None)
-        name (str): Image name for error messages
-        
-    Returns:
-        np.ndarray: Valid image array or placeholder
+    Prepare all image outputs from backend data with safe conversion.
     """
-    if image_data is None:
-        # Return a placeholder image
-        placeholder = create_dummy_image((400, 400, 3), "empty")
-        return placeholder
-    
-    if isinstance(image_data, np.ndarray):
-        # Already a numpy array
-        if len(image_data.shape) == 3 and image_data.shape[2] in (3, 4):
-            return image_data
-        else:
-            # Invalid shape, return placeholder
-            return create_dummy_image((400, 400, 3), "empty")
-    
-    # If it's a string path, we'd need to load it
-    # For now, return placeholder
-    return create_dummy_image((400, 400, 3), "empty")
+    ct_img = load_image_safe(
+        patient_data.get("ct_image"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+        as_rgb=False
+    )
+    ct_img_rgb = load_image_safe(
+        patient_data.get("ct_image"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+        as_rgb=True
+    )
+    pet_img = load_image_safe(
+        patient_data.get("pet_image"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+        as_rgb=True
+    )
+    gt_mask = load_mask_safe(
+        patient_data.get("ground_truth"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT)
+    )
+    pred_mask = load_mask_safe(
+        patient_data.get("prediction"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT)
+    )
+    heatmap_overlay = overlay_heatmap(
+        ct_img_rgb,
+        patient_data.get("heatmap"),
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT)
+    )
 
-def handle_load_patient(patient_id: str) -> Tuple:
+    gt_img = create_mask_visual(
+        gt_mask,
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+        color=(0, 220, 120)
+    )
+    pred_img = create_mask_visual(
+        pred_mask,
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+        color=(220, 80, 80)
+    )
+
+    if show_overlay and ct_img_rgb is not None:
+        overlay_img = overlay_mask(
+            ct_img_rgb,
+            pred_mask if pred_mask is not None else gt_mask,
+            color=(255, 170, 35),
+            alpha=0.35
+        )
+    else:
+        overlay_img = create_placeholder_image(
+            target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT),
+            text="Overlay disabled"
+        )
+
+    return ct_img, pet_img, gt_img, pred_img, heatmap_overlay, overlay_img
+
+def handle_load_patient(patient_id: str, show_overlay: bool = False) -> Tuple:
     """
     Handle loading a patient's data and populating all visualizations.
     Calls the backend API and handles errors gracefully.
     
     Args:
         patient_id (str): The patient ID to load
+        show_overlay (bool): Whether to render the overlay visualization
         
     Returns:
         Tuple: All outputs for the dashboard components
@@ -78,32 +119,28 @@ def handle_load_patient(patient_id: str) -> Tuple:
     if not success:
         return generate_empty_outputs(status_msg)
     
-    # Extract data from response
-    ct_img = _get_image_or_placeholder(patient_data.get("ct_image"), "CT image")
-    pet_img = _get_image_or_placeholder(patient_data.get("pet_image"), "PET image")
-    gt_img = _get_image_or_placeholder(patient_data.get("ground_truth"), "Ground truth")
-    pred_img = _get_image_or_placeholder(patient_data.get("prediction"), "Prediction")
-    heatmap_img = _get_image_or_placeholder(patient_data.get("heatmap"), "Heatmap")
-    analysis_img = create_dummy_image((400, 400, 3), "empty")
-    
+    ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
+        patient_data,
+        show_overlay=show_overlay
+    )
+
     # Extract metrics from response
     metrics = patient_data.get("metrics", {})
-    dice = metrics.get("dice_score", 0.0)
-    iou = metrics.get("iou_score", 0.0)
-    hausdorff = metrics.get("hausdorff_distance", 0.0)
-    sensitivity = metrics.get("sensitivity", 0.0)
-    specificity = metrics.get("specificity", 0.0)
+    dice = float(safe_get_nested_value(metrics, ["dice_score"], 0.0))
+    iou = float(safe_get_nested_value(metrics, ["iou_score"], 0.0))
+    hausdorff = float(safe_get_nested_value(metrics, ["hausdorff_distance"], 0.0))
+    sensitivity = float(safe_get_nested_value(metrics, ["sensitivity"], 0.0))
+    specificity = float(safe_get_nested_value(metrics, ["specificity"], 0.0))
+    confidence = float(safe_get_nested_value(metrics, ["confidence"], 0.0))
+    lesion_volume = float(safe_get_nested_value(metrics, ["lesion_volume"], 0.0))
+    sphericity = float(safe_get_nested_value(metrics, ["sphericity"], 0.0))
+    max_diameter = float(safe_get_nested_value(metrics, ["max_diameter"], 0.0))
+    mean_density = float(safe_get_nested_value(metrics, ["mean_density"], 0.0))
     
-    # Create summary text with actual data
     summary = f"""
     **Patient ID:** {patient_data.get('patient_id', 'UNKNOWN')}
     **Status:** {patient_data.get('status', 'completed')}
     **Message:** {patient_data.get('message', 'Analysis completed')}
-    
-    **Imaging Data:**
-    - CT Scan: Loaded and processed
-    - PET Scan: Loaded and processed
-    - Ground Truth Segmentation: Available
     
     **Model Performance:**
     - Dice Score: {format_metric_value(dice)}
@@ -111,17 +148,20 @@ def handle_load_patient(patient_id: str) -> Tuple:
     - Hausdorff Distance: {format_metric_value(hausdorff)}
     - Sensitivity: {format_metric_value(sensitivity)}
     - Specificity: {format_metric_value(specificity)}
+    - Confidence: {format_metric_value(confidence)}
     
-    **XAI Analysis:**
-    - Explainability heatmap generated
-    - High-attribution regions highlighted
-    - Ready for clinical review
+    **Lesion Characteristics:**
+    - Lesion Volume: {format_metric_value(lesion_volume)}
+    - Sphericity: {format_metric_value(sphericity)}
+    - Max Diameter: {format_metric_value(max_diameter)}
+    - Mean Density: {format_metric_value(mean_density)}
     """
     
     return (
-        ct_img, pet_img, gt_img, pred_img, heatmap_img, analysis_img,  # images
-        dice, iou, hausdorff, sensitivity, specificity,  # metrics
-        status_msg, summary.strip()  # status and summary
+        ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img,
+        dice, iou, hausdorff, sensitivity, specificity,
+        confidence, lesion_volume, sphericity, max_diameter, mean_density,
+        status_msg, summary.strip()
     )
 
 
@@ -136,6 +176,66 @@ def handle_clear_data() -> Tuple:
     return generate_empty_outputs(status)
 
 
+def handle_load_random_patient(show_overlay: bool = False) -> Tuple:
+    """
+    Handle loading a random patient using the backend API or demo fallback.
+    
+    Args:
+        show_overlay (bool): Whether to render the overlay visualization
+        
+    Returns:
+        Tuple: All outputs for the dashboard components
+    """
+    success, patient_data, status_msg = load_random_patient_data(use_fallback=True)
+    
+    if not success:
+        return generate_empty_outputs(status_msg)
+    
+    ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img = _prepare_patient_images(
+        patient_data,
+        show_overlay=show_overlay
+    )
+    
+    metrics = patient_data.get("metrics", {})
+    dice = float(safe_get_nested_value(metrics, ["dice_score"], 0.0))
+    iou = float(safe_get_nested_value(metrics, ["iou_score"], 0.0))
+    hausdorff = float(safe_get_nested_value(metrics, ["hausdorff_distance"], 0.0))
+    sensitivity = float(safe_get_nested_value(metrics, ["sensitivity"], 0.0))
+    specificity = float(safe_get_nested_value(metrics, ["specificity"], 0.0))
+    confidence = float(safe_get_nested_value(metrics, ["confidence"], 0.0))
+    lesion_volume = float(safe_get_nested_value(metrics, ["lesion_volume"], 0.0))
+    sphericity = float(safe_get_nested_value(metrics, ["sphericity"], 0.0))
+    max_diameter = float(safe_get_nested_value(metrics, ["max_diameter"], 0.0))
+    mean_density = float(safe_get_nested_value(metrics, ["mean_density"], 0.0))
+    
+    summary = f"""
+    **Patient ID:** {patient_data.get('patient_id', 'UNKNOWN')}
+    **Status:** {patient_data.get('status', 'random demo')}
+    **Message:** {patient_data.get('message', 'Random patient data loaded')}
+    
+    **Model Performance:**
+    - Dice Score: {format_metric_value(dice)}
+    - IoU (Jaccard): {format_metric_value(iou)}
+    - Hausdorff Distance: {format_metric_value(hausdorff)}
+    - Sensitivity: {format_metric_value(sensitivity)}
+    - Specificity: {format_metric_value(specificity)}
+    - Confidence: {format_metric_value(confidence)}
+    
+    **Lesion Characteristics:**
+    - Lesion Volume: {format_metric_value(lesion_volume)}
+    - Sphericity: {format_metric_value(sphericity)}
+    - Max Diameter: {format_metric_value(max_diameter)}
+    - Mean Density: {format_metric_value(mean_density)}
+    """
+    
+    return (
+        ct_img, pet_img, gt_img, pred_img, heatmap_img, overlay_img,
+        dice, iou, hausdorff, sensitivity, specificity,
+        confidence, lesion_volume, sphericity, max_diameter, mean_density,
+        status_msg, summary.strip()
+    )
+
+
 def generate_empty_outputs(status_message: str) -> Tuple:
     """
     Generate empty/default outputs for all dashboard components.
@@ -146,19 +246,19 @@ def generate_empty_outputs(status_message: str) -> Tuple:
     Returns:
         Tuple: All empty/default outputs
     """
-    empty_img = create_dummy_image((400, 400, 3), "empty")
+    empty_img = create_placeholder_image(
+        target_size=(config.DEFAULT_IMAGE_WIDTH, config.DEFAULT_IMAGE_HEIGHT)
+    )
     
     return (
-        empty_img, empty_img, empty_img, empty_img, empty_img, empty_img,  # images
-        0.0, 0.0, 0.0, 0.0, 0.0,  # metrics
-        status_message,  # status
-        "No patient data loaded. Use the Patient Selection panel to load a patient."  # summary
+        empty_img, empty_img, empty_img, empty_img, empty_img, empty_img,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+        status_message,
+        "No patient data loaded. Use the Patient Selection panel to load a patient."
     )
 
 
-# ============================================================================
-# Main Application
-# ============================================================================
 
 def create_app() -> gr.Blocks:
     """
@@ -218,15 +318,25 @@ def create_app() -> gr.Blocks:
             # ================================================================
             # Left Panel - Controls
             # ================================================================
-            with gr.Column(scale=1, min_width=300):
+            with gr.Column(scale=1, min_width=320):
                 gr.Markdown("### ⚙️ Controls")
                 
                 # Patient Selector
-                patient_id_input, load_button, clear_button = create_patient_selector_section()
+                patient_id_input, load_button, random_button, clear_button = create_patient_selector_section()
                 
                 gr.Markdown("---")
                 
-                # Additional Settings (placeholder)
+                # Status Output
+                status_output = gr.Textbox(
+                    label="Status",
+                    value=config.STATUS_PLACEHOLDER,
+                    interactive=False,
+                    lines=3
+                )
+                
+                gr.Markdown("---")
+                
+                # Additional Settings
                 with gr.Group(label="⚙️ Settings", scale=1):
                     gr.Markdown("#### Display Options")
                     show_overlay = gr.Checkbox(
@@ -250,10 +360,10 @@ def create_app() -> gr.Blocks:
                     gr.Markdown("""
                     **Instructions:**
                     1. Enter a patient ID (e.g., PATIENT_001)
-                    2. Click "Load Patient" to fetch imaging data
-                    3. Review the segmentation results and metrics
-                    4. Check the heatmap for XAI insights
-                    5. Use "Clear" to reset and load another patient
+                    2. Click "Load Patient" or "Random Patient"
+                    3. Review CT, PET, ground truth, prediction, and XAI heatmap
+                    4. Inspect the clinical metrics below
+                    5. Use "Clear" to reset all outputs
                     """)
             
             # ================================================================
@@ -263,15 +373,15 @@ def create_app() -> gr.Blocks:
                 gr.Markdown("### 📊 Analysis & Results")
                 
                 # Image Display Section
-                (ct_image, pet_image, gt_image, pred_image, 
-                 heatmap_image, analysis_image) = create_image_display_section()
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image = create_image_display_section()
                 
                 # Metrics Section
                 (dice_score, iou_score, hausdorff_dist, 
-                 sensitivity, specificity) = create_metrics_cards_section()
+                 sensitivity, specificity, confidence_score,
+                 lesion_volume, sphericity, max_diameter, mean_density) = create_metrics_cards_section()
                 
-                # Status & Summary Section
-                status_output, summary_output = create_summary_section()
+                # Summary Section
+                summary_output = create_summary_section()
         
         # ====================================================================
         # Event Handlers
@@ -280,10 +390,24 @@ def create_app() -> gr.Blocks:
         # Load patient button click handler
         load_button.click(
             fn=handle_load_patient,
-            inputs=[patient_id_input],
+            inputs=[patient_id_input, show_overlay],
             outputs=[
-                ct_image, pet_image, gt_image, pred_image, heatmap_image, analysis_image,
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
+                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
+                status_output, summary_output
+            ],
+            queue=False
+        )
+        
+        # Random patient button click handler
+        random_button.click(
+            fn=handle_load_random_patient,
+            inputs=[show_overlay],
+            outputs=[
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
+                dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
+                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
                 status_output, summary_output
             ],
             queue=False
@@ -294,8 +418,22 @@ def create_app() -> gr.Blocks:
             fn=handle_clear_data,
             inputs=[],
             outputs=[
-                ct_image, pet_image, gt_image, pred_image, heatmap_image, analysis_image,
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
+                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
+                status_output, summary_output
+            ],
+            queue=False
+        )
+        
+        # Update overlay visibility when the toggle changes
+        show_overlay.change(
+            fn=handle_load_patient,
+            inputs=[patient_id_input, show_overlay],
+            outputs=[
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
+                dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
+                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
                 status_output, summary_output
             ],
             queue=False
@@ -304,10 +442,11 @@ def create_app() -> gr.Blocks:
         # Load default patient on app start
         app.load(
             fn=handle_load_patient,
-            inputs=[patient_id_input],
+            inputs=[patient_id_input, show_overlay],
             outputs=[
-                ct_image, pet_image, gt_image, pred_image, heatmap_image, analysis_image,
+                ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image,
                 dice_score, iou_score, hausdorff_dist, sensitivity, specificity,
+                confidence_score, lesion_volume, sphericity, max_diameter, mean_density,
                 status_output, summary_output
             ]
         )

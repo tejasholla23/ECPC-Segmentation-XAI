@@ -10,7 +10,7 @@ import config
 from utils.helpers import format_metric_value, format_percentage
 
 
-def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button]:
+def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button, gr.Button]:
     """
     Create the patient selector control panel section.
     
@@ -18,6 +18,7 @@ def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button]
         Tuple containing:
         - patient_id_input: Textbox for patient ID
         - load_button: Button to load patient data
+        - random_button: Button to fetch a random patient
         - clear_button: Button to clear current data
     """
     with gr.Group(label="👤 Patient Selection", scale=1):
@@ -38,92 +39,94 @@ def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button]
                 scale=1,
                 size="lg"
             )
+            random_button = gr.Button(
+                "🎲 Random Patient",
+                variant="secondary",
+                scale=1
+            )
             clear_button = gr.Button(
                 "🗑️ Clear",
                 variant="secondary",
                 scale=1
             )
     
-    return patient_id_input, load_button, clear_button
+    return patient_id_input, load_button, random_button, clear_button
 
 
-def create_image_display_section() -> Tuple[gr.Image, gr.Dropdown, gr.Image, gr.Image, gr.Image, gr.Image]:
+def create_image_display_section() -> Tuple[gr.Image, gr.Image, gr.Image, gr.Image, gr.Image, gr.Image]:
     """
     Create the image display section with multiple imaging modalities.
     
     Returns:
-        Tuple containing image and dropdown components for medical imaging display
+        Tuple containing image components for medical imaging display
     """
     with gr.Group(label="🖼️ Medical Imaging", scale=2):
         gr.Markdown("#### CT/PET and Analysis Visualizations")
         
         with gr.Row():
-            # CT Image
             with gr.Column(scale=1):
                 gr.Markdown("**CT Scan**")
                 ct_image = gr.Image(
-                    label="CT",
+                    label="CT Scan",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
-            
-            # PET Image
             with gr.Column(scale=1):
                 gr.Markdown("**PET Scan**")
                 pet_image = gr.Image(
-                    label="PET",
+                    label="PET Scan",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
         
         with gr.Row():
-            # Ground Truth
             with gr.Column(scale=1):
-                gr.Markdown("**Ground Truth**")
+                gr.Markdown("**Ground Truth Mask**")
                 gt_image = gr.Image(
-                    label="Ground Truth Segmentation",
+                    label="Ground Truth Mask",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
-            
-            # Prediction
             with gr.Column(scale=1):
-                gr.Markdown("**Model Prediction**")
+                gr.Markdown("**Prediction Mask**")
                 pred_image = gr.Image(
-                    label="Model Prediction",
+                    label="Prediction Mask",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
         
         with gr.Row():
-            # Heatmap
             with gr.Column(scale=1):
-                gr.Markdown("**Explainability Heatmap**")
+                gr.Markdown("**XAI Heatmap Overlay**")
                 heatmap_image = gr.Image(
-                    label="XAI Heatmap (Attribution)",
+                    label="Heatmap Overlay",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
-            
-            # Placeholder for additional analysis
             with gr.Column(scale=1):
-                gr.Markdown("**Analysis Info**")
-                analysis_info = gr.Image(
-                    label="Placeholder",
+                gr.Markdown("**Overlay Mode**")
+                overlay_image = gr.Image(
+                    label="Overlay Visualization",
                     type="numpy",
                     interactive=False,
-                    min_width=300
+                    min_width=320,
+                    height=320
                 )
     
-    return ct_image, pet_image, gt_image, pred_image, heatmap_image, analysis_info
+    return ct_image, pet_image, gt_image, pred_image, heatmap_image, overlay_image
 
 
-def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.Number, gr.Number]:
+def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.Number, gr.Number, gr.Number, gr.Number, gr.Number, gr.Number, gr.Number]:
     """
     Create metrics display cards showing segmentation quality metrics.
     
@@ -166,37 +169,72 @@ def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.
                 interactive=False,
                 precision=3
             )
+            confidence_score = gr.Number(
+                label="Confidence",
+                value=0.0,
+                interactive=False,
+                precision=3
+            )
+        
+        with gr.Row():
+            lesion_volume = gr.Number(
+                label="Lesion Volume",
+                value=0.0,
+                interactive=False,
+                precision=3
+            )
+            sphericity = gr.Number(
+                label="Sphericity",
+                value=0.0,
+                interactive=False,
+                precision=3
+            )
+            max_diameter = gr.Number(
+                label="Max Diameter",
+                value=0.0,
+                interactive=False,
+                precision=3
+            )
+        
+        with gr.Row():
+            mean_density = gr.Number(
+                label="Mean Density",
+                value=0.0,
+                interactive=False,
+                precision=3
+            )
     
-    return dice_score, iou_score, hausdorff, sensitivity, specificity
+    return (
+        dice_score,
+        iou_score,
+        hausdorff,
+        sensitivity,
+        specificity,
+        confidence_score,
+        lesion_volume,
+        sphericity,
+        max_diameter,
+        mean_density
+    )
 
 
-def create_summary_section() -> Tuple[gr.Textbox, gr.Textbox]:
+def create_summary_section() -> gr.Textbox:
     """
-    Create the summary and status information section.
+    Create the summary information section.
     
     Returns:
-        Tuple containing:
-        - status_output: Status message display
-        - summary_output: Detailed summary information
+        gr.Textbox: detailed summary output component
     """
-    with gr.Group(label="📋 Status & Summary", scale=2):
-        gr.Markdown("#### Analysis Status & Results")
-        
-        status_output = gr.Textbox(
-            label="Status",
-            value=config.STATUS_PLACEHOLDER,
-            interactive=False,
-            lines=2
-        )
-        
+    with gr.Group(label="📋 Clinical Summary", scale=2):
+        gr.Markdown("#### Clinical Summary")
         summary_output = gr.Textbox(
-            label="Summary Information",
+            label="Summary / Clinical Report",
             value="Load a patient to see analysis results.",
             interactive=False,
-            lines=6
+            lines=8
         )
     
-    return status_output, summary_output
+    return summary_output
 
 
 def create_dummy_image(shape: Tuple[int, int, int] = (400, 400, 3), image_type: str = "random") -> np.ndarray:
