@@ -32,6 +32,242 @@ from services.api_client import load_patient_data, load_random_patient_data
 
 
 # ============================================================================
+# Theme & Styling (Gradio 6.0 compatibility)
+# ============================================================================
+
+DASHBOARD_THEME = gr.themes.Soft(
+    primary_hue="blue",
+    secondary_hue="slate"
+)
+
+DASHBOARD_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+:root {
+    --medical-blue: #0066CC;
+    --medical-slate: #64748b;
+    --medical-emerald: #10b981;
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --border-color: rgba(226, 232, 240, 0.8);
+}
+
+.dark {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-color: rgba(51, 65, 85, 0.8);
+}
+
+.gradio-container {
+    font-family: 'Inter', -apple-system, sans-serif !important;
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+.header-title {
+    text-align: center;
+    font-size: 2.8em !important;
+    font-weight: 700 !important;
+    margin-bottom: 5px !important;
+    background: linear-gradient(135deg, #0066CC 0%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+}
+
+.header-subtitle {
+    text-align: center;
+    font-size: 1.2em !important;
+    color: var(--text-secondary) !important;
+    margin-bottom: 40px !important;
+    font-weight: 400;
+}
+
+#metrics-container, #image-display-container {
+    border: 1px solid var(--border-color) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+    background-color: var(--bg-secondary) !important;
+    padding: 24px !important;
+    transition: transform 0.2s ease-in-out;
+}
+
+#metrics-container:hover {
+    transform: translateY(-2px);
+}
+
+.metric-card {
+    border: none !important;
+    background-color: var(--bg-primary) !important;
+    border-radius: 10px !important;
+    padding: 10px !important;
+    transition: all 0.2s ease;
+}
+
+.metric-card:hover {
+    background-color: var(--border-color) !important;
+}
+
+.metric-card label {
+    font-size: 0.85em !important;
+    color: var(--text-secondary) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600 !important;
+}
+
+.metric-card input {
+    font-size: 1.4em !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+}
+
+button.primary {
+    background: linear-gradient(135deg, #0066CC 0%, #2563eb 100%) !important;
+    border: none !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 102, 204, 0.3) !important;
+}
+
+button.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 20px 25px -5px rgba(0, 102, 204, 0.4) !important;
+}
+
+/* Clinical Report Enhancements */
+.clinical-report-container {
+    background: var(--bg-secondary) !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+.report-section {
+    margin-bottom: 25px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+}
+
+.report-section:last-child {
+    border-bottom: none;
+}
+
+.report-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 1.1em;
+    margin-bottom: 15px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.metric-item {
+    background: var(--bg-primary);
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #cbd5e1;
+}
+
+.metric-item.green { border-left-color: #10b981; }
+.metric-item.blue { border-left-color: #3b82f6; }
+.metric-item.amber { border-left-color: #f59e0b; }
+.metric-item.red { border-left-color: #ef4444; }
+
+.metric-item .label {
+    font-size: 0.75em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.metric-item .value {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.summary-text {
+    font-size: 0.95em;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.report-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.95em;
+    color: var(--text-secondary);
+}
+
+.report-list li {
+    margin-bottom: 5px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75em;
+    font-weight: 600;
+}
+
+.status-badge.green { background: #dcfce7; color: #166534; }
+.status-badge.blue { background: #dbeafe; color: #1e40af; }
+.status-badge.amber { background: #fef3c7; color: #92400e; }
+.status-badge.red { background: #fee2e2; color: #991b1b; }
+
+.recommendation-box {
+    background: #f0f9ff;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.report-timestamp {
+    margin-top: 15px;
+    font-size: 0.75em;
+    color: #94a3b8;
+    text-align: right;
+}
+
+/* Export & File Styling */
+#clinical-report-output {
+    max-height: 800px;
+    overflow-y: auto;
+}
+
+.gr-file {
+    border: 1px dashed #cbd5e1 !important;
+    background: #f8fafc !important;
+    border-radius: 8px !important;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    .header-title {
+        font-size: 2em !important;
+    }
+}
+"""
+
+# ============================================================================
 # Event Handlers
 # ============================================================================
 
@@ -251,7 +487,6 @@ def generate_empty_outputs(status_message: str) -> Tuple:
     )
 
 
-
 def create_app() -> gr.Blocks:
     """
     Create and configure the main Gradio Blocks application.
@@ -260,238 +495,7 @@ def create_app() -> gr.Blocks:
         gr.Blocks: Configured Gradio application
     """
     
-    with gr.Blocks(
-        title=config.TITLE,
-        theme=gr.themes.Soft(
-            primary_hue="blue",
-            secondary_hue="slate"
-        ),
-        css="""
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        
-        :root {
-            --medical-blue: #0066CC;
-            --medical-slate: #64748b;
-            --medical-emerald: #10b981;
-        }
-        
-        .gradio-container {
-            font-family: 'Inter', -apple-system, sans-serif !important;
-            background-color: #f8fafc !important;
-        }
-        
-        .header-title {
-            text-align: center;
-            font-size: 2.8em !important;
-            font-weight: 700 !important;
-            margin-bottom: 5px !important;
-            background: linear-gradient(135deg, #0066CC 0%, #38bdf8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -0.02em;
-        }
-        
-        .header-subtitle {
-            text-align: center;
-            font-size: 1.2em !important;
-            color: #64748b !important;
-            margin-bottom: 40px !important;
-            font-weight: 400;
-        }
-        
-        #metrics-container, #image-display-container {
-            border: 1px solid rgba(226, 232, 240, 0.8) !important;
-            border-radius: 16px !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
-            background-color: white !important;
-            padding: 24px !important;
-            transition: transform 0.2s ease-in-out;
-        }
-        
-        #metrics-container:hover {
-            transform: translateY(-2px);
-        }
-        
-        .metric-card {
-            border: none !important;
-            background-color: #f1f5f9 !important;
-            border-radius: 10px !important;
-            padding: 10px !important;
-            transition: all 0.2s ease;
-        }
-        
-        .metric-card:hover {
-            background-color: #e2e8f0 !important;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05) !important;
-        }
-        
-        .metric-card label {
-            font-size: 0.85em !important;
-            color: #475569 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 600 !important;
-        }
-        
-        .metric-card input {
-            font-size: 1.4em !important;
-            font-weight: 700 !important;
-            color: #0f172a !important;
-        }
-        
-        button.primary {
-            background: linear-gradient(135deg, #0066CC 0%, #2563eb 100%) !important;
-            border: none !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 102, 204, 0.3) !important;
-        }
-        
-        button.primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 20px 25px -5px rgba(0, 102, 204, 0.4) !important;
-        }
-        
-        .gr-check-radio {
-            accent-color: #0066CC !important;
-        }
-        
-        /* Loading animation */
-        .loading {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .7; }
-        /* Clinical Report Styles */
-        .clinical-report-container {
-            padding: 5px;
-            color: #1e293b;
-        }
-        
-        .report-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        
-        .patient-badge {
-            font-weight: 700;
-            color: #64748b;
-            font-size: 0.9em;
-        }
-        
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.85em;
-        }
-        
-        .report-section {
-            margin-bottom: 25px;
-        }
-        
-        .report-section h4 {
-            margin: 0 0 10px 0;
-            color: #0f172a;
-            font-size: 1.1em;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 12px;
-        }
-        
-        .metric-item {
-            background: #f8fafc;
-            padding: 10px;
-            border-radius: 8px;
-            border-left: 3px solid #3b82f6;
-        }
-        
-        .metric-item .label {
-            font-size: 0.75em;
-            color: #64748b;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        
-        .metric-item .value {
-            font-size: 1.2em;
-            font-weight: 700;
-        }
-        
-        .summary-text {
-            font-size: 0.95em;
-            line-height: 1.5;
-            color: #475569;
-        }
-        
-        .report-list {
-            margin: 0;
-            padding-left: 20px;
-            font-size: 0.95em;
-            color: #475569;
-        }
-        
-        .report-list li {
-            margin-bottom: 5px;
-        }
-        
-        .recommendation-box {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        
-        .rec-title {
-            display: block;
-            font-weight: 700;
-            color: #0369a1;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-        }
-        
-        .report-timestamp {
-            margin-top: 15px;
-            font-size: 0.75em;
-            color: #94a3b8;
-            text-align: right;
-        }
-        
-        /* Export & File Styling */
-        #clinical-report-output {
-            max-height: 800px;
-            overflow-y: auto;
-        }
-        
-        .gr-file {
-            border: 1px dashed #cbd5e1 !important;
-            background: #f8fafc !important;
-            border-radius: 8px !important;
-        }
-        
-        /* Mobile Responsiveness */
-        @media (max-width: 768px) {
-            .metrics-grid {
-                grid-template-columns: 1fr;
-            }
-            .header-title {
-                font-size: 2em !important;
-            }
-        }
-        """
-    ) as app:
+    with gr.Blocks(title=config.TITLE) as app:
         
         # Patient data state to store loaded data
         patient_data_state = gr.State({})
@@ -531,8 +535,8 @@ def create_app() -> gr.Blocks:
                 gr.Markdown("---")
                 
                 # Additional Settings
-                with gr.Group(label="⚙️ Settings", scale=1):
-                    gr.Markdown("#### Display Options")
+                with gr.Column(variant="panel", scale=1):
+                    gr.Markdown("#### ⚙️ Settings")
                     show_overlay = gr.Checkbox(
                         label="Show overlay comparison",
                         value=False,
@@ -554,11 +558,18 @@ def create_app() -> gr.Blocks:
                         step=0.05,
                         interactive=True
                     )
+                    dark_mode = gr.Checkbox(
+                        label="🌙 Dark Mode",
+                        value=False,
+                        interactive=True,
+                        elem_id="dark-mode-toggle"
+                    )
                 
                 gr.Markdown("---")
                 
                 # Info Panel
-                with gr.Group(label="ℹ️ Information"):
+                with gr.Column(variant="panel"):
+                    gr.Markdown("#### ℹ️ Information")
                     gr.Markdown("""
                     **Instructions:**
                     1. Enter a patient ID (e.g., PATIENT_001)
@@ -647,6 +658,22 @@ def create_app() -> gr.Blocks:
             queue=False
         )
         
+        # Dark mode toggle handler (JS only)
+        dark_mode.change(
+            fn=None,
+            inputs=[dark_mode],
+            outputs=None,
+            js="""
+            (checked) => {
+                if (checked) {
+                    document.body.classList.add('dark');
+                } else {
+                    document.body.classList.remove('dark');
+                }
+            }
+            """
+        )
+        
         export_button.click(
             fn=handle_export_report,
             inputs=[patient_data_state],
@@ -683,6 +710,8 @@ if __name__ == "__main__":
     app.launch(
         server_name="127.0.0.1",
         server_port=7860,
+        theme=DASHBOARD_THEME,
+        css=DASHBOARD_CSS,
         share=False,
         show_error=True,
         debug=True

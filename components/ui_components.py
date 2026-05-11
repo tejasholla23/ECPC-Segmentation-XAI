@@ -21,8 +21,8 @@ def create_patient_selector_section() -> Tuple[gr.Textbox, gr.Button, gr.Button,
         - random_button: Button to fetch a random patient
         - clear_button: Button to clear current data
     """
-    with gr.Group(label="👤 Patient Selection", scale=1):
-        gr.Markdown("#### Load Patient Data")
+    with gr.Column(variant="panel", scale=1):
+        gr.Markdown("#### 👤 Patient Selection")
         
         patient_id_input = gr.Textbox(
             label="Patient ID",
@@ -70,7 +70,7 @@ def create_image_display_section() -> Tuple[gr.Image, gr.Image, gr.Image, gr.Ima
     Returns:
         Tuple containing image components for medical imaging display
     """
-    with gr.Group(elem_id="image-display-container", scale=2):
+    with gr.Column(elem_id="image-display-container", scale=2, variant="panel"):
         gr.Markdown("#### 🧬 Imaging Modalities & Analysis")
         
         with gr.Row():
@@ -143,7 +143,7 @@ def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.
     Returns:
         Tuple containing metric output components
     """
-    with gr.Group(elem_id="metrics-container", scale=1):
+    with gr.Column(elem_id="metrics-container", scale=1, variant="panel"):
         gr.Markdown("#### 🩺 Clinical Analysis Metrics")
         
         with gr.Row():
@@ -199,7 +199,7 @@ def create_summary_section() -> gr.HTML:
     Returns:
         gr.HTML: detailed summary output component
     """
-    with gr.Group(elem_id="report-container", scale=2):
+    with gr.Column(elem_id="report-container", scale=2, variant="panel"):
         gr.Markdown("#### 📋 AI Clinical Report")
         summary_output = gr.HTML(
             value="""
