@@ -151,10 +151,10 @@ def create_metrics_cards_section() -> Tuple[gr.Number, gr.Number, gr.Number, gr.
                 gr.Markdown("**Model Performance**")
                 with gr.Row():
                     dice_score = gr.Number(label="Dice Score", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
-                    iou_score = gr.Number(label="IoU", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
-                with gr.Row():
-                    hausdorff = gr.Number(label="Hausdorff", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
                     confidence_score = gr.Number(label="Confidence", value=0.0, interactive=False, precision=3, elem_classes="metric-card")
+                # Hidden to maintain backend compatibility
+                iou_score = gr.Number(visible=False)
+                hausdorff = gr.Number(visible=False)
             
             with gr.Column(scale=1):
                 gr.Markdown("**Statistical Reliability**")
@@ -199,11 +199,11 @@ def create_summary_section() -> gr.HTML:
     Returns:
         gr.HTML: detailed summary output component
     """
-    with gr.Column(elem_id="report-container", scale=2, variant="panel"):
+    with gr.Column(elem_id="report-container", scale=2, variant="panel", elem_classes="clinical-report-container"):
         gr.Markdown("#### 📋 AI Clinical Report")
         summary_output = gr.HTML(
             value="""
-            <div style="padding: 40px; text-align: center; color: #64748b;">
+            <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
                 <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
                 <div style="font-size: 1.2em;">Waiting for patient analysis...</div>
                 <div style="font-size: 0.9em; margin-top: 10px;">Select a patient to generate AI diagnostic report.</div>

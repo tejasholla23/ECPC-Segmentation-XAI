@@ -30,7 +30,7 @@ METRIC_MAX_DIAMETER = "max_diameter"
 METRIC_MEAN_DENSITY = "mean_density"
 
 # Placeholder Text Values
-TITLE = "ECPC-IDS Endometriosis Segmentation XAI Dashboard"
+TITLE = "Diagnostic Dashboard"
 SUBTITLE = "Interactive visualization of CT/PET imaging with AI predictions and explainability heatmaps"
 
 STATUS_PLACEHOLDER = "Ready to analyze imaging data"
